@@ -143,7 +143,7 @@ where
     pub fn body(self) -> ResponseBody<'resp, 'buf, C> {
         let reader_hint = if self.method == Method::HEAD {
             // Head requests does not have a body so we return an empty reader
-            ReaderHint::Empty
+            ReaderHint::FixedLength(0)
         } else if let Some(content_length) = self.content_length {
             ReaderHint::FixedLength(content_length)
         } else if self.transfer_encoding.contains(&TransferEncoding::Chunked) {
@@ -198,7 +198,6 @@ where
 
 #[derive(Clone, Copy)]
 enum ReaderHint {
-    Empty,
     FixedLength(usize),
     Chunked,
     ToEnd, // https://www.rfc-editor.org/rfc/rfc7230#section-3.3.3 pt. 7: Until end of connection
@@ -207,7 +206,6 @@ enum ReaderHint {
 impl ReaderHint {
     fn reader<R: Read>(self, raw_body: R) -> BodyReader<R> {
         match self {
-            ReaderHint::Empty => BodyReader::Empty,
             ReaderHint::FixedLength(content_length) => BodyReader::FixedLength(FixedLengthBodyReader {
                 raw_body,
                 remaining: content_length,
@@ -237,7 +235,6 @@ where
     /// This requires that this original buffer is large enough to contain the entire body.
     pub async fn read_to_end(self) -> Result<&'buf mut [u8], Error> {
         match self.reader_hint {
-            ReaderHint::Empty => Ok(&mut []),
             ReaderHint::FixedLength(content_length) => {
                 let read = BodyReader::FixedLength(FixedLengthBodyReader {
                     raw_body: self.conn,
